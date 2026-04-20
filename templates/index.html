@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Find Singers That Match My Voice</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 850px;
+        margin: 40px auto;
+        padding: 20px;
+        background: #f7f7f7;
+        color: #222;
+      }
+
+      h1 {
+        margin-bottom: 10px;
+        text-align: center;
+      }
+
+      p.subtitle {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+
+      .card {
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 20px;
+      }
+
+      .upload-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      button {
+        padding: 10px 16px;
+        border: 1px solid #999;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .result-item {
+        border: 1px solid #e3e3e3;
+        border-radius: 10px;
+        padding: 12px;
+        margin-top: 10px;
+        background: #fafafa;
+      }
+
+      #status,
+      #result,
+      #debug {
+        display: none;
+      }
+
+      #debug {
+        white-space: pre-wrap;
+        font-family: Consolas, monospace;
+        background: #f3f3f3;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Find Singers That Match My Voice</h1>
+    <p class="subtitle">
+      Upload your singing or speaking sample and compare your vocal tone to
+      singer profiles.
+    </p>
+
+    <div class="card">
+      <div class="upload-row">
+        <input type="file" id="audioFile" accept="audio/*" />
+        <button type="button" id="analyzeBtn">Analyze</button>
+      </div>
+    </div>
+
+    <div id="status" class="card"></div>
+    <div id="result" class="card"></div>
+    <div id="debug" class="card"></div>
+
+    <script>
+      document
+        .getElementById("analyzeBtn")
+        .addEventListener("click", uploadFile);
+
+      async function uploadFile() {
+        const fileInput = document.getElementById("audioFile");
+        const statusDiv = document.getElementById("status");
+        const resultDiv = document.getElementById("result");
+        const debugDiv = document.getElementById("debug");
+
+        statusDiv.style.display = "none";
+        resultDiv.style.display = "none";
+        debugDiv.style.display = "none";
+
+        if (!fileInput.files.length) {
+          alert("Please upload an audio file first.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        statusDiv.style.display = "block";
+        statusDiv.innerHTML = "Analyzing voice...";
+
+        try {
+          const response = await fetch("/analyze", {
+            method: "POST",
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          debugDiv.style.display = "block";
+          debugDiv.textContent = JSON.stringify(data, null, 2);
+
+          if (!response.ok) {
+            statusDiv.innerHTML = "Server returned an error.";
+            resultDiv.style.display = "block";
+            resultDiv.innerHTML = `<p><strong>Error:</strong> ${data.error || "Unknown server error"}</p>`;
+            return;
+          }
+
+          const result = data.results;
+
+          let html = `
+          <h2>Analysis Result</h2>
+          <p><strong>Voice description:</strong> ${result.voice_description}</p>
+          <p><strong>Average pitch:</strong> ${result.pitch_mean} Hz</p>
+          <p><strong>Pitch range:</strong> ${result.pitch_min} Hz - ${result.pitch_max} Hz</p>
+          <h3>Top Matches</h3>
+        `;
+
+          result.top_matches.forEach((item, index) => {
+            html += `
+            <div class="result-item">
+              <strong>${index + 1}. ${item.singer}</strong><br>
+              Similarity: ${item.similarity}%
+            </div>
+          `;
+          });
+
+          statusDiv.innerHTML = "Analysis completed successfully.";
+          resultDiv.style.display = "block";
+          resultDiv.innerHTML = html;
+        } catch (error) {
+          statusDiv.style.display = "block";
+          statusDiv.innerHTML = "Request failed.";
+          resultDiv.style.display = "block";
+          resultDiv.innerHTML = `<p><strong>Error:</strong> ${error.message}</p>`;
+          debugDiv.style.display = "block";
+          debugDiv.textContent = error.message;
+        }
+      }
+    </script>
+  </body>
+</html>
